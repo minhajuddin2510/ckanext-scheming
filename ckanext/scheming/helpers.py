@@ -5,6 +5,7 @@ import datetime
 import pytz
 import json
 import six
+import logging
 
 from jinja2 import Environment
 from ckan.plugins.toolkit import config, _, h
@@ -95,7 +96,44 @@ def scheming_choices_label(choices, value):
             return scheming_language_text(c.get('label', value))
     return scheming_language_text(value)
 
+@helper
+def scheming_field_suggestion(field):
+    """
+    Returns suggestion data for a field if it exists
+    """
+    suggestion_label = field.get('suggestion_label', field.get('label', ''))
+    suggestion_formula = field.get('suggestion_formula', field.get('suggest_jinja2', None))
+    
+    if suggestion_formula:
+        return {
+            'label': suggestion_label,
+            'formula': suggestion_formula
+        }
+    return None
 
+
+@helper
+def scheming_get_suggestion_value(formula, data=None, errors=None, lang=None):
+    """
+    Evaluate a jinja2 suggestion formula for a field
+    """
+    if not formula:
+        return ''
+    
+    try:
+        # For testing, return a dummy value if no data is provided
+        if not data:
+            return "Suggested value: " + formula
+        
+        env = Environment()
+        template = env.from_string(formula)
+        return template.render(package=data, data=data, h=h)
+    except Exception as e:
+        # Log the error but don't crash
+        logging.warning(f"Error evaluating suggestion formula: {e}")
+        return f"Error evaluating suggestion: {e}"
+    
+    
 @helper
 def scheming_datastore_choices(field):
     """

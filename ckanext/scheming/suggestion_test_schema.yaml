@@ -1,0 +1,115 @@
+scheming_version: 2
+dataset_type: dataset
+about: A schema with suggestion fields for testing
+about_url: http://github.com/ckan/ckanext-scheming
+
+
+dataset_fields:
+
+- field_name: title
+  label: Title
+  preset: title
+  form_placeholder: eg. A descriptive title Custom
+  suggestion_formula: "Dataset: {{package.name|default('example-dataset')}}"
+
+- field_name: name
+  label: URL
+  preset: dataset_slug
+  form_placeholder: eg. my-dataset
+
+- field_name: notes
+  label: Description
+  form_snippet: markdown.html
+  form_placeholder: eg. Some useful notes/blurb about the data
+  suggestion_label: Suggested Description
+  suggestion_formula: "This dataset contains information about {{package.title|default('your subject')}}. It was created by {{package.author|default('an author')}} and is maintained by {{package.maintainer|default('a maintainer')}}."
+
+- field_name: spatial_extent
+  label: Spatial Extent
+  form_snippet: markdown.html
+  suggestion_label: Geographic Boundary
+  suggestion_formula: "POLYGON((12.0 45.0, 14.0 45.0, 14.0 47.0, 12.0 47.0, 12.0 45.0))"
+
+- field_name: test_field
+  label: Test Field
+  form_snippet: markdown.html
+  suggestion_formula: "{{package.author|default('John Doe')}}: {{package.author_email|default('john@example.com')}}"
+
+- field_name: tag_string
+  label: Tags
+  preset: tag_string_autocomplete
+  form_placeholder: eg. economy, mental health, government
+  suggestion_formula: "data, statistics, public"
+
+- field_name: license_id
+  label: License
+  form_snippet: license.html
+  help_text: License definitions and additional information can be found at http://opendefinition.org/
+
+- field_name: owner_org
+  label: Organization
+  preset: dataset_organization
+
+- field_name: url
+  label: Source
+  form_placeholder: http://example.com/dataset.json
+  display_property: foaf:homepage
+  display_snippet: link.html
+
+- field_name: version
+  label: Version
+  validators: ignore_missing unicode_safe package_version_validator
+  form_placeholder: '1.0'
+  suggestion_formula: "1.0"
+
+- field_name: author
+  label: Author
+  form_placeholder: Joe Bloggs
+  display_property: dc:creator
+
+- field_name: author_email
+  label: Author Email
+  form_placeholder: joe@example.com
+  display_property: dc:creator
+  display_snippet: email.html
+  display_email_name_field: author
+
+- field_name: maintainer
+  label: Maintainer
+  form_placeholder: Joe Bloggs
+  display_property: dc:contributor
+
+- field_name: maintainer_email
+  label: Maintainer Email
+  form_placeholder: joe@example.com
+  display_property: dc:contributor
+  display_snippet: email.html
+  display_email_name_field: maintainer
+
+
+resource_fields:
+
+- field_name: url
+  label: URL
+  preset: resource_url_upload
+
+- field_name: name
+  label: Name
+  form_placeholder: eg. January 2011 Gold Prices
+
+- field_name: description
+  label: Description
+  form_snippet: markdown.html
+  form_placeholder: Some useful notes about the data
+  suggestion_label: Resource Description
+  suggestion_formula: "This resource contains data for {{package.title|default('this dataset')}}."
+
+- field_name: spatial_extent
+  label: Spatial Extent
+  form_snippet: markdown.html
+  suggestion_formula: "POLYGON((12.0 45.0, 14.0 45.0, 14.0 47.0, 12.0 47.0, 12.0 45.0))"
+
+- field_name: format
+  label: Format
+  preset: resource_format_autocomplete
+  suggestion_formula: "CSV"
