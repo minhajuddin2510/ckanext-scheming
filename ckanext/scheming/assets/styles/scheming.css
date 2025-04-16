@@ -56,6 +56,7 @@ label:after {
 }
 
 
+
 .suggestion-btn {
   display: inline-flex;
   align-items: center;
@@ -135,6 +136,50 @@ label:after {
   color: #333;
   font-size: 16px;
   font-weight: 600;
+}
+
+/* Warning for invalid dropdown values */
+.suggestion-warning {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 8px;
+  padding: 10px;
+  background-color: #fff7ed;
+  border-radius: 6px;
+  border-left: 3px solid #e67e22;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8d4004;
+}
+
+.suggestion-warning svg {
+  flex-shrink: 0;
+  margin-right: 8px;
+  stroke: #e67e22;
+  margin-top: 2px;
+}
+
+.suggestion-warning span {
+  display: block;
+}
+
+/* Invalid selection animation */
+@keyframes invalidShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
+select.suggestion-invalid {
+  animation: invalidShake 0.5s ease;
+  border-color: #e67e22 !important;
+  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.2) !important;
+}
+
+.suggestion-warning-message {
+  animation: fadeInOut 1.5s ease-in-out;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  background-color: #e67e22 !important;
 }
 
 .suggestion-value {
@@ -260,6 +305,21 @@ label:after {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   box-shadow: 0 2px 5px rgba(42, 145, 52, 0.3);
+}
+
+/* Disabled apply button for invalid suggestions */
+.suggestion-apply-btn-disabled {
+  background-color: #cccccc !important;
+  color: #888888 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 0.7;
+}
+
+.suggestion-apply-btn-disabled:hover {
+  transform: none !important;
+  background-color: #cccccc !important;
+  box-shadow: none !important;
 }
 
 .suggestion-apply-btn:hover {

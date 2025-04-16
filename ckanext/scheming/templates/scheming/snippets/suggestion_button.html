@@ -1,3 +1,4 @@
+{# Create a new file: ckanext/scheming/templates/scheming/snippets/suggestion_button.html #}
 
 {% set suggestion = h.scheming_field_suggestion(field) %}
 {% if suggestion %}
@@ -5,12 +6,26 @@
   {% set field_id = 'field-' + field.field_name %}
   {% set popup_id = 'suggestion-popup-' + field.field_name %}
   
+  {# Check if this is a select field and if the suggestion is valid #}
+  {% set is_select = field.choices is defined or field.choices_helper is defined %}
+  {% set is_valid_suggestion = h.scheming_is_valid_suggestion(field, suggestion_value) %}
+  
   <button type="button" 
           class="suggestion-btn"
           title="Suggestion Available"
           data-module="scheming-suggestions"
           data-content="<div class='suggestion-popover-content'>
                          <strong>{{ suggestion.label }}</strong>
+                         {% if is_select and not is_valid_suggestion %}
+                         <div class='suggestion-warning'>
+                           <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                             <circle cx='12' cy='12' r='10'></circle>
+                             <line x1='12' y1='8' x2='12' y2='12'></line>
+                             <line x1='12' y1='16' x2='12.01' y2='16'></line>
+                           </svg>
+                           <span>This value is not a valid choice for this field</span>
+                         </div>
+                         {% endif %}
                          <div class='suggestion-value'>{{ suggestion_value }}</div>
                          <div class='formula-toggle'>
                            <button class='formula-toggle-btn' type='button'>
@@ -30,9 +45,11 @@
                            </div>
                            <code>{{ suggestion.formula|e }}</code>
                          </div>
-                         <button class='suggestion-apply-btn' 
+                         <button class='suggestion-apply-btn {% if not is_valid_suggestion %}suggestion-apply-btn-disabled{% endif %}' 
                                  data-target='{{ field_id }}' 
-                                 data-value='{{ suggestion_value|replace('\'', '\\\'')|replace('\n', '\\n')|replace('"', '&quot;') }}'>
+                                 data-value='{{ suggestion_value|replace('\'', '\\\'')|replace('\n', '\\n')|replace('"', '&quot;') }}'
+                                 data-is-select='{{ is_select }}'
+                                 data-is-valid='{{ is_valid_suggestion }}'>
                            Apply suggestion
                          </button>
                        </div>">

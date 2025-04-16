@@ -1,3 +1,5 @@
+// Create a new file: ckanext/scheming/assets/js/scheming-suggestions.js
+
 ckan.module('scheming-suggestions', function($) {
   return {
     initialize: function() {
@@ -13,6 +15,14 @@ ckan.module('scheming-suggestions', function($) {
       
       // Add class to parent control-group for styling
       $(el).closest('.control-group').addClass('has-suggestion');
+      
+      // Check for any invalid suggestions and disable their apply buttons
+      $popoverDiv.find('.suggestion-apply-btn').each(function() {
+        var isValid = $(this).data('is-valid') !== 'false';
+        if (!isValid) {
+          $(this).addClass('suggestion-apply-btn-disabled');
+        }
+      });
       
       $(el).on('click', function(e) {
         e.preventDefault();
@@ -122,8 +132,16 @@ ckan.module('scheming-suggestions', function($) {
         e.preventDefault();
         e.stopPropagation();
         
+        // Skip if button is disabled
+        if ($(this).hasClass('suggestion-apply-btn-disabled')) {
+          console.log("Ignoring click on disabled apply button");
+          return;
+        }
+        
         var targetId = $(this).data('target');
         var suggestionValue = $(this).data('value');
+        var isSelectField = $(this).data('is-select') === 'true';
+        var isValid = $(this).data('is-valid') !== 'false'; // Default to true if not specified
         var $target = $('#' + targetId);
         
         if ($target.length === 0) {
@@ -143,8 +161,50 @@ ckan.module('scheming-suggestions', function($) {
         } else if ($target.is('input[type="text"]')) {
           $target.val(suggestionValue);
         } else if ($target.is('select')) {
-          $target.val(suggestionValue);
-          $target.trigger('change');
+          if (isValid) {
+            $target.val(suggestionValue);
+            $target.trigger('change');
+          } else {
+            // This case should not happen now with disabled buttons, but kept for safety
+            var $warningMsg = $('<div class="suggestion-warning-message">The suggested value is not a valid option</div>');
+            $warningMsg.css({
+              position: 'absolute',
+              top: $target.offset().top - 25,
+              left: $target.offset().left + $target.outerWidth() / 2,
+              transform: 'translateX(-50%)',
+              backgroundColor: '#e67e22',
+              color: 'white',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              zIndex: 1010,
+              opacity: 0,
+              transition: 'opacity 0.3s ease'
+            });
+            $('body').append($warningMsg);
+            
+            setTimeout(function() {
+              $warningMsg.css('opacity', '1');
+            }, 10);
+            
+            setTimeout(function() {
+              $warningMsg.css('opacity', '0');
+              setTimeout(function() {
+                $warningMsg.remove();
+              }, 300);
+            }, 3000);
+            
+            // Highlight the select to show it needs attention
+            $target.addClass('suggestion-invalid');
+            setTimeout(function() {
+              $target.removeClass('suggestion-invalid');
+            }, 3000);
+            
+            // Hide the popover
+            $popoverDiv.hide();
+            return;
+          }
         }
         
         // Add a success class for animation

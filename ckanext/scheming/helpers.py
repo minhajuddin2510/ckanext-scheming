@@ -67,7 +67,6 @@ def scheming_language_text(text, prefer_lang=None):
     t = _(text)
     return t
 
-
 @helper
 def scheming_field_choices(field):
     """
@@ -129,11 +128,31 @@ def scheming_get_suggestion_value(formula, data=None, errors=None, lang=None):
         template = env.from_string(formula)
         return template.render(package=data, data=data, h=h)
     except Exception as e:
-        # Log the error but don't crash
         logging.warning(f"Error evaluating suggestion formula: {e}")
         return f"Error evaluating suggestion: {e}"
+
+
+@helper
+def scheming_is_valid_suggestion(field, value):
+    """
+    Check if a suggested value is valid for a field, particularly for select fields
+    """
+    # If not a select/choice field, always valid
+    if not field.get('choices') and not field.get('choices_helper'):
+        return True
     
+    # Get all valid choices for this field
+    choices = scheming_field_choices(field)
+    if not choices:
+        return True
     
+    # Check if the value is in the list of valid choices
+    for choice in choices:
+        if choice['value'] == value:
+            return True
+            
+    return False
+
 @helper
 def scheming_datastore_choices(field):
     """
