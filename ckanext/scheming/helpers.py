@@ -114,23 +114,30 @@ def scheming_field_suggestion(field):
 @helper
 def scheming_get_suggestion_value(formula, data=None, errors=None, lang=None):
     """
-    Evaluate a jinja2 suggestion formula for a field
+    Get suggestion value from package dictionary
     """
-    if not formula:
+    if not formula or not data:
         return ''
     
     try:
-        # For testing, return a dummy value if no data is provided
-        if not data:
-            return "Suggested value: " + formula
+        # Get field name from the formula as fallback
+        field_name = formula.split('.')[0] if '.' in formula else ''
         
-        env = Environment()
-        template = env.from_string(formula)
-        return template.render(package=data, data=data, h=h)
+        # Try to get the suggestion value from dpp_suggestions field
+        if data and 'dpp_suggestions' in data and isinstance(data['dpp_suggestions'], dict):
+            # The key will be the field name (without package prefix if any)
+            key = field_name.replace('package.', '')
+            suggestion_value = data['dpp_suggestions'].get(key, '')
+            if suggestion_value:
+                return suggestion_value
+        
+        # Fallback: return formula for display purposes
+        return f"Formula: {formula}"
     except Exception as e:
-        logging.warning(f"Error evaluating suggestion formula: {e}")
-        return f"Error evaluating suggestion: {e}"
-
+        # Log the error but don't crash
+        import logging
+        logging.warning(f"Error getting suggestion value: {e}")
+        return f"Error: {e}"
 
 @helper
 def scheming_is_valid_suggestion(field, value):
