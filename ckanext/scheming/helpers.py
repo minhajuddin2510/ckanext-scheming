@@ -5,6 +5,7 @@ import datetime
 import pytz
 import json
 import six
+import logging
 
 from jinja2 import Environment
 from ckan.plugins.toolkit import config, _, h
@@ -66,7 +67,6 @@ def scheming_language_text(text, prefer_lang=None):
     t = _(text)
     return t
 
-
 @helper
 def scheming_field_choices(field):
     """
@@ -95,6 +95,95 @@ def scheming_choices_label(choices, value):
             return scheming_language_text(c.get('label', value))
     return scheming_language_text(value)
 
+@helper
+def scheming_field_suggestion(field):
+    """
+    Returns suggestion data for a field if it exists
+    """
+    suggestion_label = field.get('suggestion_label', field.get('label', ''))
+    suggestion_formula = field.get('suggestion_formula', field.get('suggest_jinja2', None))
+    
+    if suggestion_formula:
+        return {
+            'label': suggestion_label,
+            'formula': suggestion_formula
+        }
+    return None
+
+
+
+@helper
+def scheming_get_suggestion_value(formula, data=None, errors=None, lang=None):
+    """
+    Get suggestion value from package dictionary's dpp_suggestions field
+    
+    The dpp_suggestions structure is expected to be:
+    {
+        "package": {
+            "notes": "Latitudinal range 11.26444 the q...",
+            "spatial_extent": "SRID=4326;POLYGON(...)",
+            "test_field": "Hello world!",
+            ...
+        }
+    }
+    """
+    if not formula or not data:
+        return ''
+    
+    try:
+        # Extract field name from formula
+        field_name = formula.split('.')[-1] if '.' in formula else formula
+        
+        # Get package data (where dpp_suggestions is stored)
+        package_data = data
+        if 'package_id' in data and not 'dpp_suggestions' in data:
+            # We're in a resource context, need to get the parent package
+            try:
+                from ckan.logic import get_action
+                package_data = get_action('package_show')(
+                    {'ignore_auth': True}, 
+                    {'id': data['package_id']}
+                )
+            except Exception:
+                pass
+        
+        # Check if dpp_suggestions exists and has the package section
+        if (package_data and 'dpp_suggestions' in package_data and 
+            isinstance(package_data['dpp_suggestions'], dict) and
+            'package' in package_data['dpp_suggestions']):
+            
+            # Get the suggestion value if it exists
+            if field_name in package_data['dpp_suggestions']['package']:
+                return package_data['dpp_suggestions']['package'][field_name]
+        
+        # No suggestion value found
+        return ''
+    except Exception as e:
+        # Log the error but don't crash
+        import logging
+        logging.warning(f"Error getting suggestion value: {e}")
+        return ''
+
+@helper
+def scheming_is_valid_suggestion(field, value):
+    """
+    Check if a suggested value is valid for a field, particularly for select fields
+    """
+    # If not a select/choice field, always valid
+    if not field.get('choices') and not field.get('choices_helper'):
+        return True
+    
+    # Get all valid choices for this field
+    choices = scheming_field_choices(field)
+    if not choices:
+        return True
+    
+    # Check if the value is in the list of valid choices
+    for choice in choices:
+        if choice['value'] == value:
+            return True
+            
+    return False
 
 @helper
 def scheming_datastore_choices(field):

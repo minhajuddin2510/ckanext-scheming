@@ -1,0 +1,205 @@
+scheming_version: 2
+dataset_type: dataset
+about: A schema for testing suggestion functionality with different field types
+about_url: http://github.com/ckan/ckanext-scheming
+
+dataset_fields:
+
+- field_name: title
+  label: Title
+  preset: title
+  form_placeholder: eg. A descriptive title
+  suggestion_formula: "Sample Dataset: {{package.name|default('example-dataset')}}"
+
+- field_name: name
+  label: URL
+  preset: dataset_slug
+  form_placeholder: eg. my-dataset
+
+- field_name: notes
+  label: Description
+  form_snippet: markdown.html
+  form_placeholder: eg. Some useful notes about the data
+  suggestion_label: Suggested Description
+  suggestion_formula: "This dataset contains information about {{package.title|default('your subject')}}. It was created by {{package.author|default('an author')}} and is maintained by {{package.maintainer|default('a maintainer')}}."
+
+# Valid dropdown suggestion (matches a choice)
+- field_name: license_id
+  label: License
+  form_snippet: select.html
+  suggestion_formula: "cc-by"
+  choices:
+  - value: cc-by
+    label: Creative Commons Attribution
+  - value: cc-by-sa
+    label: Creative Commons Attribution Share-Alike
+  - value: cc-zero
+    label: Creative Commons CCZero
+  - value: cc-nc
+    label: Creative Commons Non-Commercial (Any)
+  - value: gfdl
+    label: GNU Free Documentation License
+  - value: odc-by
+    label: Open Data Commons Attribution License
+  - value: odc-odbl
+    label: Open Data Commons Open Database License (ODbL)
+  - value: odc-pddl
+    label: Open Data Commons Public Domain Dedication and License (PDDL)
+  - value: uk-ogl
+    label: UK Open Government Licence (OGL)
+  - value: other-open
+    label: Other (Open)
+  - value: other-pd
+    label: Other (Public Domain)
+  - value: other-at
+    label: Other (Attribution)
+  - value: other-nc
+    label: Other (Non-Commercial)
+  - value: other-closed
+    label: Other (Not Open)
+
+# Invalid dropdown suggestion (doesn't match any choice)
+- field_name: status
+  label: Status
+  form_snippet: select.html
+  suggestion_formula: "super-awesome-status"
+  suggestion_label: Dataset Status
+  choices:
+  - value: active
+    label: Active
+  - value: draft
+    label: Draft
+  - value: archived
+    label: Archived
+  - value: pending-review
+    label: Pending Review
+
+# Valid dropdown suggestion
+- field_name: update_frequency
+  label: Update Frequency
+  form_snippet: select.html
+  suggestion_formula: "weekly"
+  suggestion_label: Update Frequency
+  choices:
+  - value: daily
+    label: Daily
+  - value: weekly
+    label: Weekly
+  - value: monthly
+    label: Monthly
+  - value: quarterly
+    label: Quarterly
+  - value: annually
+    label: Annually
+  - value: irregular
+    label: Irregular
+
+- field_name: owner_org
+  label: Organization
+  preset: dataset_organization
+
+- field_name: url
+  label: Source
+  form_placeholder: http://example.com/dataset.json
+  display_property: foaf:homepage
+  display_snippet: link.html
+
+- field_name: version
+  label: Version
+  validators: ignore_missing unicode_safe package_version_validator
+  form_placeholder: '1.0'
+  suggestion_formula: "1.0"
+
+- field_name: author
+  label: Author
+  form_placeholder: Joe Bloggs
+  display_property: dc:creator
+  suggestion_formula: "Data Science Team"
+
+- field_name: author_email
+  label: Author Email
+  form_placeholder: joe@example.com
+  display_property: dc:creator
+  display_snippet: email.html
+  display_email_name_field: author
+  suggestion_formula: "data-science@example.com"
+
+- field_name: maintainer
+  label: Maintainer
+  form_placeholder: Joe Bloggs
+  display_property: dc:contributor
+  suggestion_formula: "{{package.author|default('John Doe')}}"
+
+- field_name: maintainer_email
+  label: Maintainer Email
+  form_placeholder: joe@example.com
+  display_property: dc:contributor
+  display_snippet: email.html
+  display_email_name_field: maintainer
+  suggestion_formula: "{{package.author_email|default('john@example.com')}}"
+
+# Text field with complex suggestion
+- field_name: spatial_extent
+  label: Spatial Extent
+  form_snippet: markdown.html
+  suggestion_label: Geographic Boundary
+  suggestion_formula: "POLYGON((12.0 45.0, 14.0 45.0, 14.0 47.0, 12.0 47.0, 12.0 45.0))"
+
+resource_fields:
+
+- field_name: url
+  label: URL
+  preset: resource_url_upload
+
+- field_name: name
+  label: Name
+  form_placeholder: eg. January 2011 Gold Prices
+  suggestion_formula: "{{package.title|default('Resource')}}: Data File"
+
+- field_name: description
+  label: Description
+  form_snippet: markdown.html
+  form_placeholder: Some useful notes about the data
+  suggestion_label: Resource Description
+  suggestion_formula: "This resource contains data for {{package.title|default('this dataset')}}."
+
+# Valid dropdown suggestion for resource
+- field_name: resource_type
+  label: Resource Type
+  form_snippet: select.html
+  suggestion_formula: "api"
+  suggestion_label: Resource Type
+  choices:
+  - value: file
+    label: File Upload
+  - value: api
+    label: API
+  - value: documentation
+    label: Documentation
+  - value: code
+    label: Code Repository
+  - value: example
+    label: Example
+
+# Invalid dropdown suggestion for resource
+- field_name: data_format
+  label: Data Format
+  form_snippet: select.html
+  suggestion_formula: "super-cool-format"
+  suggestion_label: Data Format
+  choices:
+  - value: csv
+    label: CSV
+  - value: json
+    label: JSON
+  - value: xml
+    label: XML
+  - value: excel
+    label: Excel
+  - value: pdf
+    label: PDF
+
+- field_name: format
+  label: Format
+  preset: resource_format_autocomplete
+  suggestion_formula: "CSV"
