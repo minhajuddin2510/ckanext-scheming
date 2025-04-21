@@ -111,33 +111,58 @@ def scheming_field_suggestion(field):
     return None
 
 
+
 @helper
 def scheming_get_suggestion_value(formula, data=None, errors=None, lang=None):
     """
-    Get suggestion value from package dictionary
+    Get suggestion value from package dictionary's dpp_suggestions field
+    
+    The dpp_suggestions structure is expected to be:
+    {
+        "package": {
+            "notes": "Latitudinal range 11.26444 the q...",
+            "spatial_extent": "SRID=4326;POLYGON(...)",
+            "test_field": "Hello world!",
+            ...
+        }
+    }
     """
     if not formula or not data:
         return ''
     
     try:
-        # Get field name from the formula as fallback
-        field_name = formula.split('.')[0] if '.' in formula else ''
+        # Extract field name from formula
+        field_name = formula.split('.')[-1] if '.' in formula else formula
         
-        # Try to get the suggestion value from dpp_suggestions field
-        if data and 'dpp_suggestions' in data and isinstance(data['dpp_suggestions'], dict):
-            # The key will be the field name (without package prefix if any)
-            key = field_name.replace('package.', '')
-            suggestion_value = data['dpp_suggestions'].get(key, '')
-            if suggestion_value:
-                return suggestion_value
+        # Get package data (where dpp_suggestions is stored)
+        package_data = data
+        if 'package_id' in data and not 'dpp_suggestions' in data:
+            # We're in a resource context, need to get the parent package
+            try:
+                from ckan.logic import get_action
+                package_data = get_action('package_show')(
+                    {'ignore_auth': True}, 
+                    {'id': data['package_id']}
+                )
+            except Exception:
+                pass
         
-        # Fallback: return formula for display purposes
-        return f"Formula: {formula}"
+        # Check if dpp_suggestions exists and has the package section
+        if (package_data and 'dpp_suggestions' in package_data and 
+            isinstance(package_data['dpp_suggestions'], dict) and
+            'package' in package_data['dpp_suggestions']):
+            
+            # Get the suggestion value if it exists
+            if field_name in package_data['dpp_suggestions']['package']:
+                return package_data['dpp_suggestions']['package'][field_name]
+        
+        # No suggestion value found
+        return ''
     except Exception as e:
         # Log the error but don't crash
         import logging
         logging.warning(f"Error getting suggestion value: {e}")
-        return f"Error: {e}"
+        return ''
 
 @helper
 def scheming_is_valid_suggestion(field, value):
