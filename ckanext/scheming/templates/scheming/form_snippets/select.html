@@ -27,12 +27,10 @@
 {% set suggestion = h.scheming_field_suggestion(field) %}
 {% set label_text = h.scheming_language_text(field.label) %}
 {% set label_with_suggestion %}
-  <div class="control-label-with-suggestion">
     <span class="form-label">{{ label_text }}:</span>
     {%- if suggestion -%}
       {%- snippet 'scheming/snippets/suggestion_button.html', field=field, data=data -%}
     {%- endif -%}
-  </div>
 {% endset %}
 
 {% call form.select(
