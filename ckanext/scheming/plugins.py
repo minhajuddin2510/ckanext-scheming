@@ -231,6 +231,12 @@ class SchemingDatasetsPlugin(p.SingletonPlugin, DefaultDatasetForm,
     def package_types(self):
         return list(self._schemas)
 
+    def resource_validation_dependencies(self, package_type):
+        # Compatibility with https://github.com/ckan/ckan/pull/8421
+        schema = self._schemas.get(package_type, {})
+        dfr = schema.get('draft_fields_required', True)
+        return [] if dfr else ['state']
+
     def validate(self, context, data_dict, schema, action):
         """
         Validate and convert for package_create, package_update and
@@ -366,7 +372,7 @@ class SchemingDatasetsPlugin(p.SingletonPlugin, DefaultDatasetForm,
                 views.SchemingCreateView.as_view('new'),
             )
             bp.add_url_rule(
-                '/new/<id>/<page>',
+                '/new/<id>/1',
                 'scheming_new_page',
                 views.SchemingCreatePageView.as_view('new_page'),
             )

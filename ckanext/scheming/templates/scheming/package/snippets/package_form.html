@@ -4,6 +4,7 @@
   {%- set pages = h.scheming_get_dataset_form_pages(dataset_type) -%}
   {%- if pages -%}
     {%- set active_page = data.get('_form_page', 1) | int -%}
+    {%- set draft_missing_required = h.scheming_missing_required_fields(pages, data) -%}
     <ol class="stages stage-1">
       {%- for p in pages -%}
         <li class="{{
@@ -13,13 +14,22 @@
           <span class="highlight" style="padding-right:0">{% if loop.index < active_page
               or (form_style == 'edit' and loop.index != active_page)
             %}<a href="{{
-              h.url_for(dataset_type +
-                  ('.scheming_edit_page' if form_style == 'edit' else '.scheming_new_page'),
+              h.url_for(dataset_type + '.scheming_edit_page',
                 package_type=dataset_type,
                 id=data.name or data.id,
                 page=loop.index)
             }}">{{ h.scheming_language_text(p.title) }}</a>{%
             else %}{{ h.scheming_language_text(p.title) }}{% endif %}
+            {%- set mreq = draft_missing_required[loop.index0] -%}
+            {% if mreq %}
+              <abbr title="{{
+                  ungettext("Missing required field", "Missing required fields", mreq | length)
+                }}: {% for m in mreq %}{{
+                    h.scheming_language_text(h.scheming_field_by_name(p.fields, m).label)
+                  }}{% if not loop.last %}, {% endif %}{% endfor %}">
+                <i class="fa fa-exclamation-circle text-danger fs-3" aria-hidden="true"></i>
+              </abbr>
+            {% endif %}
           </span>
         </li>
       {%- endfor -%}
@@ -110,6 +120,8 @@
   {%- if pages and form_style == 'edit' -%}
     {%- set active_page = data.get('_form_page', 1) | int -%}
     {{ _('Update {page}').format(page=h.scheming_language_text(pages[active_page-1].title)) }}
+  {%- elif pages and data.get('_form_page', 1) | int == pages | length -%}
+    {{ _('Publish') }}
   {%- elif pages -%}
     {{ _('Next') }}
   {%- else -%}
