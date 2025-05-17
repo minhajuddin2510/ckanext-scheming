@@ -20,8 +20,8 @@ dataset_fields:
   label: Description
   form_snippet: markdown.html
   form_placeholder: eg. Some useful notes/blurb about the data
-  suggestion_formula: Latitudinal range {{resource.LATITUDE.stats.max|float - resource.LATITUDE.stats.min|float }} {{"the quick brown fox"|truncate_with_ellipsis(5)}}
-
+  suggestion_formula: Latitudinal range {{ (dpps[dpp.LAT_FIELD].stats.max|float) - (dpps[dpp.LAT_FIELD].stats.min|float) }} {{"the quick brown fox"|truncate_with_ellipsis(5)}}
+  
 - field_name: spatial_extent
   label: Spatial Extent
   form_snippet: markdown.html
@@ -29,7 +29,14 @@ dataset_fields:
 
 - field_name: test_field
   label: Test Field
-  formula: 'Test formula field value:{{package.author}}: {{package.author_email}}'
+  form_snippet: markdown.html
+  formula: 'Test field value:{{package.author}}: {{package.author_email}}'
+
+- field_name: frequency_info
+  label: Frequency Information
+  form_snippet: markdown.html
+  form_placeholder: eg. Daily, Weekly, Monthly, Annually, etc.
+  formula: '{{ get_frequency_top_values("LATITUDE") }}'
 
 - field_name: tag_string
   label: Tags
@@ -81,7 +88,7 @@ dataset_fields:
   display_email_name_field: maintainer
 
 - field_name: dpp_suggestions
-  label: DPP Suggestion
+  label: DPP Suggestions
   preset: json_object
 
 resource_fields:
@@ -102,8 +109,14 @@ resource_fields:
 - field_name: spatial_extent
   label: Spatial Extent
   form_snippet: markdown.html
-  suggestion_formula: POLYGON(({{resource.LATITUDE.stats.min|float}}, {{resource.LONGITUDE.stats.min|float}}, {{resource.LATITUDE.stats.max|float}}, {{resource.LONGITUDE.stats.min|float}}, {{resource.LATITUDE.stats.max|float}}, {{resource.LONGITUDE.stats.max|float}}, {{resource.LATITUDE.stats.min|float}}, {{resource.LONGITUDE.stats.max|float}}, {{resource.LATITUDE.stats.min|float}}, {{resource.LONGITUDE.stats.min|float}}))
 
+- field_name: spatial_extent_fc_inferred
+  label: Spatial Extent Feature Collection Inferred
+  form_snippet: markdown.html
+
+- field_name: spatial_extent_wkt_inferred
+  label: Spatial Extent WKT Inferred
+  form_snippet: markdown.html
 
 - field_name: format
   label: Format
