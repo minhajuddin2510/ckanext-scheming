@@ -3,7 +3,8 @@ if (typeof window._schemingSuggestionsGlobalState === 'undefined') {
         datasetId: null,
         globalInitDone: false,
         pollAttempts: 0,
-        isPolling: false // Flag to prevent multiple concurrent poll loops
+        isPolling: false,
+        isInitialLoadWithExistingSuggestions: false 
     };
 }
 
@@ -69,7 +70,6 @@ ckan.module('scheming-suggestions', function($) {
 
             if (!globalState.globalInitDone) {
                 globalState.globalInitDone = true;
-                this._showProcessingBanner();
                 if (!globalState.isPolling) this._pollForSuggestions(); // Start polling if not already
             }
             this._attachBaseEventHandlers(el, this._popoverDivs[fieldName], fieldName);
@@ -344,7 +344,31 @@ ckan.module('scheming-suggestions', function($) {
             } else if (!globalState.isPolling) { // Should not happen if logic is correct, but as a safeguard
                 globalState.isPolling = true;
             }
-
+            if (globalState.pollAttempts === 0 && $('#scheming-processing-banner').length === 0) {
+                var self = this;
+                // Quick check to see if we should show the banner
+                $.ajax({
+                    url: (ckan.SITE_ROOT || '') + '/api/3/action/package_show',
+                    data: { id: globalState.datasetId, include_tracking: false },
+                    dataType: 'json',
+                    cache: false,
+                    async: false, // Make synchronous just for this initial check
+                    success: function(response) {
+                        if (response.success && response.result && response.result.dpp_suggestions) {
+                            var status = response.result.dpp_suggestions.STATUS;
+                            if (!status || !self.options.terminalStatuses.includes(status.toUpperCase())) {
+                                self._showProcessingBanner();
+                            }
+                        } else {
+                            self._showProcessingBanner();
+                        }
+                    },
+                    error: function() {
+                        self._showProcessingBanner();
+                    }
+                });
+            }
+            
             $.ajax({
                 url: (ckan.SITE_ROOT || '') + '/api/3/action/package_show',
                 data: { id: globalState.datasetId, include_tracking: false },
@@ -367,6 +391,7 @@ ckan.module('scheming-suggestions', function($) {
                         if (currentDppStatus === 'DONE') {
                             console.log("SchemingSuggestions: STATUS is DONE. Applying final updates to formula fields from main dataset object.");
                             self._updateLiveDatasetAndFormulaFields(datasetObject, dppSuggestionsData);
+                            globalState.isInitialLoadWithExistingSuggestions = (globalState.pollAttempts === 1);
                         } else if (dppSuggestionsData) { // If dpp_suggestions exists, update its textarea
                             self._updateLiveDatasetAndFormulaFields(null, dppSuggestionsData); // Only update dpp_suggestions field
                         }
@@ -375,10 +400,14 @@ ckan.module('scheming-suggestions', function($) {
                         if (currentDppStatus) {
                             if (self.options.terminalStatuses.includes(currentDppStatus)) {
                                 if (currentDppStatus === 'DONE') {
-                                    self._updateProcessingBanner(self.options.statusDoneText, 'scheming-alert-success');
-                                    setTimeout(function() { self._removeProcessingBanner(); }, 5000);
+                                    if (!globalState.isInitialLoadWithExistingSuggestions) {
+                                        self._updateProcessingBanner(self.options.statusDoneText, 'scheming-alert-success');
+                                        setTimeout(function() { self._removeProcessingBanner(); }, 5000);  
+                                    }
                                 } else { // ERROR, FAILED
-                                    self._updateProcessingBanner(self.options.statusErrorText + esc(dppSuggestionsData.STATUS) + '</span>', 'scheming-alert-danger');
+                                    if ($('#scheming-processing-banner').length > 0) {
+                                        self._updateProcessingBanner(self.options.statusErrorText + esc(dppSuggestionsData.STATUS) + '</span>', 'scheming-alert-danger');
+                                    }
                                 }
                                 globalState.isPolling = false; return;
                             } else { // Ongoing status
