@@ -352,7 +352,8 @@ ckan.module('scheming-suggestions', function($) {
                     data: { id: globalState.datasetId, include_tracking: false },
                     dataType: 'json',
                     cache: false,
-                    async: false, // Make synchronous just for this initial check
+                    // The following is causing a browser hang-up in our Docker envirinment so I am temporarily disabling it.
+                    async: true, // Make synchronous just for this initial check
                     success: function(response) {
                         if (response.success && response.result && response.result.dpp_suggestions) {
                             var status = response.result.dpp_suggestions.STATUS;
