@@ -35,12 +35,8 @@ class SchemingCreateView(CreateView):
     def post(self, package_type):
         rval = super(SchemingCreateView, self).post(package_type)
         if getattr(rval, 'status_code', None) == 302:
-            # successful create, send to page 2 instead of resource new page
-            return h.redirect_to(
-                '{}.scheming_edit_page'.format(package_type),
-                id=request.form['name'],
-                page=2,
-            )
+            # successful create on DRUF page 1; send to new resource page
+            return h.redirect_to('{}_resource.new'.format(package_type), id=request.form['name'],)
         return rval
 
 
@@ -161,9 +157,14 @@ class SchemingEditPageView(EditView):
                 {'allow_state_change': True}, data_dict)
 
             if page < len(h.scheming_get_dataset_form_pages(package_type)):
-                url = h.url_for(
-                    f'{package_type}.scheming_edit_page', id=id,
-                    page=page + 1)
+                if page == 1:
+                    # Redirect to 'add data' page
+                    url = h.url_for('{}_resource.new'.format(package_type), id=id)
+                else:
+                    # Redirect to next DRUF page
+                    url = h.url_for(
+                        f'{package_type}.scheming_edit_page', id=id,
+                        page=page + 1)
                 return h.redirect_to(url)
 
             # BEGIN: roughly copied from ckan/views/dataset.py
