@@ -158,7 +158,7 @@ class SchemingEditPageView(EditView):
 
             if page < len(h.scheming_get_dataset_form_pages(package_type)):
                 if page == 1 and data.get('state','draft') == 'draft':
-                    # Redirect to 'add data' page
+                    # If _creating_ a dataset, Redirect to 'add data' page
                     url = h.url_for('{}_resource.new'.format(package_type), id=id)
                 else:
                     # Redirect to next DRUF page
