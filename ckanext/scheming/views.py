@@ -183,6 +183,9 @@ class SchemingEditPageView(EditView):
             elif save_action == 'exit':
                 return h.redirect_to(f'{package_type}.read', id=id)
             
+            elif save_action == 'update':
+                    return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page)
+            
             elif save_action == 'approve':
                 data_dict['data_admin_approved'] = 'approved'
                 data_dict['private'] = False
