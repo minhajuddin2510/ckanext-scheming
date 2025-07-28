@@ -18,6 +18,8 @@ from ckan.views.dataset import CreateView, EditView
 # FIXME these not available from toolkit
 from ckan.lib.navl.dictization_functions import unflatten, DataError
 from ckan.logic import clean_dict, tuplize_dict, parse_params
+import logging
+log = logging.getLogger(__name__)
 
 
 def _clean_page(package_type, page):
@@ -147,14 +149,88 @@ class SchemingEditPageView(EditView):
 
         try:
             data_dict.pop('_ckan_phase', None)
-            data_dict.pop('save', None)
+            # data_dict.pop('save', None)
             data_dict['id'] = id
             # END: roughly copied from ckan/views/dataset.py
-            save_action = 'save'
+            save_action = data_dict.pop('save', 'next')
+
+            pages = h.scheming_get_dataset_form_pages(package_type)
+            total_pages = len(pages)
+
             if page == len(h.scheming_get_dataset_form_pages(package_type)):
                 data_dict['state'] = 'active'
-            complete_data = get_action('package_patch')(
-                {'allow_state_change': True}, data_dict)
+
+            try:
+                complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+            except ValidationError as e:
+                errors = e.error_dict
+                error_summary = e.error_summary
+                data_dict['_form_page'] = page
+                return EditView().get(package_type, id, data_dict, errors, error_summary)
+        
+            if save_action == 'previous':
+                if page == 2 and data.get('state','draft') == 'draft':
+                    return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
+                elif page > 1:
+                    return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page - 1)
+
+            elif save_action == 'next':
+                if page == 1 and data.get('state','draft') == 'draft':
+                    return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
+                elif page < total_pages:
+                    return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page + 1)
+
+            elif save_action == 'exit':
+                return h.redirect_to(f'{package_type}.read', id=id)
+            
+            elif save_action == 'update':
+                    return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page)
+            
+            elif save_action == 'approve':
+                data_dict['data_admin_approved'] = 'approved'
+                data_dict['private'] = False
+                data_dict['state'] = 'active'
+                try:
+                    complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+                except ValidationError as e:
+                    errors = e.error_dict
+                    error_summary = e.error_summary
+                    data_dict['_form_page'] = page
+                    return EditView().get(package_type, id, data_dict, errors, error_summary)
+                return h.redirect_to(f'{package_type}.read', id=id)
+            
+            elif save_action == 'unapprove':
+                data_dict['data_admin_approved'] = 'unapproved'
+                try:
+                    complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+                except ValidationError as e:
+                    errors = e.error_dict
+                    error_summary = e.error_summary
+                    data_dict['_form_page'] = page
+                    return EditView().get(package_type, id, data_dict, errors, error_summary)
+                return h.redirect_to(f'{package_type}.read', id=id)
+            
+            elif save_action == 'publish':
+                data_dict['private'] = False
+                try:
+                    complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+                except ValidationError as e:
+                    errors = e.error_dict
+                    error_summary = e.error_summary
+                    data_dict['_form_page'] = page
+                    return EditView().get(package_type, id, data_dict, errors, error_summary)
+                return h.redirect_to(f'{package_type}.read', id=id)
+
+            elif save_action in ['submit_for_approval']:
+                data_dict['state'] = 'active'
+                try:
+                    complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+                except ValidationError as e:
+                    errors = e.error_dict
+                    error_summary = e.error_summary
+                    data_dict['_form_page'] = page
+                    return EditView().get(package_type, id, data_dict, errors, error_summary)
+                return h.redirect_to(f'{package_type}.read', id=id)
 
             if page < len(h.scheming_get_dataset_form_pages(package_type)):
                 if page == 1 and data.get('state','draft') == 'draft':
