@@ -169,13 +169,13 @@ class SchemingEditPageView(EditView):
                 return EditView().get(package_type, id, data_dict, errors, error_summary)
         
             if save_action == 'previous':
-                if page == 2 and data.get('state','draft') == 'draft':
+                if page == 2:
                     return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
                 elif page > 1:
                     return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page - 1)
 
             elif save_action == 'next':
-                if page == 1 and data.get('state','draft') == 'draft':
+                if page == 1:
                     return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
                 elif page < total_pages:
                     return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page + 1)
