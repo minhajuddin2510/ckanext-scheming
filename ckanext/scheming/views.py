@@ -201,6 +201,7 @@ class SchemingEditPageView(EditView):
             
             elif save_action == 'unapprove':
                 data_dict['data_admin_approved'] = 'unapproved'
+                data_dict['private'] = True
                 try:
                     complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
                 except ValidationError as e:
@@ -212,6 +213,17 @@ class SchemingEditPageView(EditView):
             
             elif save_action == 'publish':
                 data_dict['private'] = False
+                try:
+                    complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
+                except ValidationError as e:
+                    errors = e.error_dict
+                    error_summary = e.error_summary
+                    data_dict['_form_page'] = page
+                    return EditView().get(package_type, id, data_dict, errors, error_summary)
+                return h.redirect_to(f'{package_type}.read', id=id)
+            
+            elif save_action == 'unpublish':
+                data_dict['private'] = True
                 try:
                     complete_data = get_action('package_patch')({'allow_state_change': True}, data_dict)
                 except ValidationError as e:
