@@ -1,4 +1,3 @@
-
 from flask import Response, Blueprint
 from flask.views import MethodView
 from werkzeug.datastructures import MultiDict
@@ -18,7 +17,13 @@ from ckan.views.dataset import CreateView, EditView
 # FIXME these not available from toolkit
 from ckan.lib.navl.dictization_functions import unflatten, DataError
 from ckan.logic import clean_dict, tuplize_dict, parse_params
+import socket
+from ckan.plugins import toolkit as tk
 import logging
+from ckan.plugins.toolkit import config, render
+from ckan.common import config as common_config
+from datetime import datetime
+
 log = logging.getLogger(__name__)
 
 
@@ -28,6 +33,110 @@ def _clean_page(package_type, page):
     if page < 1 or len(h.scheming_get_dataset_form_pages(package_type)) < page:
         raise ValueError('page number out of range')
     return page
+
+def generate_dataset_approval_email(dataset: dict) -> str:
+    
+    site_title = common_config.get("ckan.site_title", "CKAN Instance")
+    editor_url = f"{common_config.get('ckan.site_url')}/dataset/edit/{dataset['id']}"
+    api_url = f"{common_config.get('ckan.site_url')}/api/3/action/package_show?id={dataset['id']}"
+    report_url = f"{common_config.get('ckan.site_url')}/ckan-admin/approval-report"
+
+    extra_vars = {
+        "dataset_title": dataset.get("title"),
+        "dataset_notes": dataset.get("notes", ""),
+        "editor_url": editor_url,
+        "api_url": api_url,
+        "site_title": site_title,
+        "report_url": report_url
+    }
+
+    return render("emails/email_sysadmin.html", extra_vars)
+
+def generate_dataset_approval_email_txt(dataset: dict) -> str:
+    
+    site_title = common_config.get("ckan.site_title", "CKAN Instance")
+    editor_url = f"{common_config.get('ckan.site_url')}/dataset/edit/{dataset['id']}"
+    api_url = f"{common_config.get('ckan.site_url')}/api/3/action/package_show?id={dataset['id']}"
+    report_url = f"{common_config.get('ckan.site_url')}/ckan-admin/approval-report"
+
+    extra_vars = {
+        "dataset_title": dataset.get("title"),
+        "dataset_notes": dataset.get("notes", ""),
+        "editor_url": editor_url,
+        "api_url": api_url,
+        "site_title": site_title,
+        "report_url": report_url
+    }
+    return render('emails/email_sysadmin.txt', extra_vars)
+
+
+def send_admin_email(email_template_txt: str, email_template_html: str) -> None:
+    """
+    Send the email to the administrators.
+    """
+    log.info("Trying to send an email to TWDH administrator")
+    # emails = h.sysadmin_emails()
+
+    try:
+        admin_name = tk.config.get("ckanext.twdh.admin_name", "TWDH Administrator")
+        admin_email = "dipak.shetty@twdb.texas.gov" #tk.config.get("ckanext.contact.mail_to","DataHub@twdh.texas.gov")
+        subject = "Data Resource Ready for Review " #tk.config.get("ckanext.twdh.admin_email_subject","Dataset Approval Request")
+        tk.mail_recipient(admin_name, admin_email, subject, email_template_txt, email_template_html)
+
+        # Don't send to all sysadmins for now
+        '''
+        for email in emails:
+            log.info(f"Sending email to {email}")
+            tk.mail_recipient("Admin", email,
+                              subject, email_template_txt, email_template_html)
+        '''
+
+    except (Exception, socket.error):
+        log.error("Error sending an email to administators")
+        return
+    log.info("Email succesfully sent to administrators")
+
+def send_editor_submission_confirmation(user_email: str, user_name: str, dataset_title: str, dataset_url: str):
+    
+    log.info(f"Sending submission confirmation to Editor: {user_email}")
+    try:
+        subject = "Texas Water Data Hub Submission Confirmation"
+        extra_vars = {
+            "user_name": user_name,
+            "dataset_title": dataset_title,
+            "dataset_url": dataset_url,
+            "site_title": tk.config.get('ckan.site_title'),
+            "site_url": tk.config.get('ckan.site_url')
+        }
+
+        body = tk.render("emails/editor_submitted.txt", extra_vars)
+        body_html = tk.render("emails/editor_submitted.html", extra_vars)
+
+        tk.mail_recipient(user_name, user_email, subject, body, body_html)
+        log.info("Confirmation email sent to Editor successfully.")
+    except Exception as e:
+        log.error(f"Failed to send confirmation email to Editor: {e}")
+
+def send_editor_approval_notification(user_email: str, user_name: str, dataset_title: str, dataset_url: str):
+    
+    log.info(f"Sending approval notification to Editor: {user_email}")
+    try:
+        subject = "Your Data Resource is Published!"
+        extra_vars = {
+            "user_name": user_name,
+            "dataset_title": dataset_title,
+            "dataset_url": dataset_url,
+            "site_title": tk.config.get('ckan.site_title'),
+            "site_url": tk.config.get('ckan.site_url')
+        }
+
+        body = tk.render("emails/editor_approved.txt", extra_vars)
+        body_html = tk.render("emails/editor_approved.html", extra_vars)
+
+        tk.mail_recipient(user_name, user_email, subject, body, body_html)
+        log.info("Approval notification sent to Editor successfully.")
+    except Exception as e:
+        log.error(f"Failed to send approval notification to Editor: {e}")
 
 
 class SchemingCreateView(CreateView):
@@ -197,6 +306,24 @@ class SchemingEditPageView(EditView):
                     error_summary = e.error_summary
                     data_dict['_form_page'] = page
                     return EditView().get(package_type, id, data_dict, errors, error_summary)
+                
+                # Send mail to editor
+                try:
+                    creator_id = complete_data.get('creator_user_id')
+                    if creator_id:
+                        creator = tk.get_action('user_show')({}, {'id': creator_id})
+                        editor_name = creator.get('fullname') or creator.get('display_name') or creator.get('name', '')
+                        editor_email = creator.get('email', '')
+                        dataset_url = f"{tk.config.get('ckan.site_url')}/dataset/{complete_data['name']}"
+                        send_editor_approval_notification(
+                            user_email=editor_email,
+                            user_name=editor_name,
+                            dataset_title=complete_data.get('title', ''),
+                            dataset_url=dataset_url
+                        )
+                except Exception as e:
+                    log.warning(f"Could not send approval notification to Editor: {e}")
+
                 return h.redirect_to(f'{package_type}.read', id=id)
             
             elif save_action == 'unapprove':
@@ -242,6 +369,92 @@ class SchemingEditPageView(EditView):
                     error_summary = e.error_summary
                     data_dict['_form_page'] = page
                     return EditView().get(package_type, id, data_dict, errors, error_summary)
+                
+                #Editor Detail
+                editor_name = ''
+                editor_email = ''
+                try:
+                    creator_id = complete_data.get('creator_user_id')
+                    if creator_id:
+                        creator = tk.get_action('user_show')({}, {'id': creator_id})
+                        editor_name = creator.get('fullname') or creator.get('display_name') or creator.get('name', '')
+                        editor_email = creator.get('email', '')
+                except Exception as e:
+                    log.warning(f"Could not resolve creator user: {e}")
+
+                # Organization title
+                organization_title = ''
+                try:
+                    org_obj = complete_data.get('organization')
+                    if isinstance(org_obj, dict):
+                        organization_title = org_obj.get('title') or org_obj.get('name') or ''
+                    elif complete_data.get('owner_org'):
+                        org = tk.get_action('organization_show')({}, {'id': complete_data['owner_org']})
+                        organization_title = org.get('title') or org.get('name') or ''
+                except Exception as e:
+                    log.warning(f"Could not resolve organization: {e}")
+
+                # Date submitted (UTC)
+                date_submitted = datetime.utcnow().strftime('%Y-%m-%d')
+
+                # First resource download URL (if any)
+                download_url = ''
+                try:
+                    for r in (complete_data.get('resources') or []):
+                        if r.get('url'):
+                            download_url = r['url']
+                            break
+                except Exception:
+                    pass
+
+                # Links
+                site_url = tk.config.get('ckan.site_url', '')
+                editor_url = f"{site_url}/dataset/edit/{complete_data['id']}"
+                api_url = f"{site_url}/api/3/action/package_show?id={complete_data['id']}"
+                report_url = f"{site_url}/ckan-admin/approval-report"
+
+                extra_vars = {
+                    "dataset_title": complete_data.get("title"),
+                    "dataset_notes": complete_data.get("notes", ""),
+                    "editor_name": editor_name,
+                    "editor_email": editor_email,
+                    "organization_title": organization_title,
+                    "date_submitted": date_submitted,
+                    "editor_url": editor_url,
+                    "download_url": download_url or "N/A",
+                    "api_url": api_url,
+                    "report_url": report_url,
+                    "site_title": tk.config.get("ckan.site_title"),
+                }
+
+                log.info(extra_vars)
+                # Render + send to SysAdmin (uses your existing templates under templates/emails/)
+                email_html = render("emails/email_sysadmin.html", extra_vars)
+                email_txt = render("emails/email_sysadmin.txt", extra_vars)
+                    
+                # email_html = generate_dataset_approval_email(data)
+                # email_txt = generate_dataset_approval_email_txt(data)
+                send_admin_email(email_txt,email_html)
+
+                 # Optional: confirmation back to the Editor who submitted
+                try:
+                    if editor_email:
+                        subj_url = f"{site_url}/dataset/edit/{complete_data['name']}"
+                        send_editor_submission_confirmation(
+                            user_email=editor_email,
+                            user_name=editor_name or "Editor",
+                            dataset_title=complete_data.get('title', ''),
+                            dataset_url=subj_url
+                        )
+                except Exception as e:
+                    log.warning(f"Could not send editor confirmation email: {e}")
+
+#                 send_editor_submission_confirmation(
+#                     user_email=user_obj.email,
+#                     user_name=user_obj.display_name or user_obj.name,
+#                     dataset_title=dataset['title'],
+#                     dataset_url=h.url_for('dataset.edit', id=dataset['name'], qualified=True)
+# )
                 return h.redirect_to(f'{package_type}.read', id=id)
 
             if page < len(h.scheming_get_dataset_form_pages(package_type)):
