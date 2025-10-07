@@ -79,8 +79,8 @@ def send_admin_email(email_template_txt: str, email_template_html: str) -> None:
 
     try:
         admin_name = tk.config.get("ckanext.twdh.admin_name", "TWDH Administrator")
-        admin_email = "dipak.shetty@twdb.texas.gov" #tk.config.get("ckanext.contact.mail_to","DataHub@twdh.texas.gov")
-        subject = "Data Resource Ready for Review " #tk.config.get("ckanext.twdh.admin_email_subject","Dataset Approval Request")
+        admin_email = tk.config.get("ckanext.contact.mail_to","DataHub@twdh.texas.gov")
+        subject = tk.config.get("ckanext.twdh.admin_email_subject","Dataset Approval Request")
         tk.mail_recipient(admin_name, admin_email, subject, email_template_txt, email_template_html)
 
         # Don't send to all sysadmins for now
