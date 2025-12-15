@@ -98,6 +98,10 @@ ckan.module('scheming-suggestions', function($) {
         },
         _showProcessingBanner: function() {
             var self = this;
+            // Don't show banner on resource pages
+            if (self._isOnResourcePage()) {
+                return;
+            }
             if ($('#scheming-processing-banner').length === 0) {
                 var bannerHtml = '<div id="scheming-processing-banner" class="scheming-alert scheming-alert-info">' +
                                  self.options.processingMessage +
@@ -110,6 +114,11 @@ ckan.module('scheming-suggestions', function($) {
             }
         },
         _updateProcessingBanner: function(message, alertClass) {
+            var self = this;
+            // Don't show/update banner on resource pages
+            if (self._isOnResourcePage()) {
+                return;
+            }
             var $banner = $('#scheming-processing-banner');
             if ($banner.length === 0 && message) { // If banner doesn't exist, create it
                 this._showProcessingBanner();
@@ -124,6 +133,20 @@ ckan.module('scheming-suggestions', function($) {
         },
         _removeProcessingBanner: function() {
             $('#scheming-processing-banner').fadeOut(function() { $(this).remove(); });
+        },
+
+        _isOnResourcePage: function() {
+            // Check if we're on a resource page (new_resource or edit_resource)
+            var path = window.location.pathname;
+            // Check for various resource page patterns:
+            // - /dataset/{id}/new_resource
+            // - /dataset/{id}/new_resource/{resource_id}
+            // - /dataset/{id}/resource/{resource_id}
+            // - /dataset/{id}/resource/{resource_id}/edit
+            // - /dataset/{id}/resource_edit/{resource_id}
+            return path.indexOf('/new_resource') !== -1 || 
+                   path.indexOf('/resource_edit') !== -1 ||
+                   path.match(/\/dataset\/[^\/]+\/resource\/[^\/]+(\/edit)?$/) !== null;
         },
 
         _processDppButtonSuggestions: function(dppPackageSuggestions) {
@@ -344,7 +367,8 @@ ckan.module('scheming-suggestions', function($) {
             } else if (!globalState.isPolling) { // Should not happen if logic is correct, but as a safeguard
                 globalState.isPolling = true;
             }
-            if (globalState.pollAttempts === 0 && $('#scheming-processing-banner').length === 0) {
+            // Only check and show banner if we're not on a resource page
+            if (globalState.pollAttempts === 0 && $('#scheming-processing-banner').length === 0 && !this._isOnResourcePage()) {
                 var self = this;
                 // Quick check to see if we should show the banner
                 $.ajax({

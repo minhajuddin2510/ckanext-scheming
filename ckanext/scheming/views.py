@@ -79,8 +79,8 @@ def send_admin_email(email_template_txt: str, email_template_html: str) -> None:
 
     try:
         admin_name = tk.config.get("ckanext.twdh.admin_name", "TWDH Administrator")
-        admin_email = "dipak.shetty@twdb.texas.gov" #tk.config.get("ckanext.contact.mail_to","DataHub@twdh.texas.gov")
-        subject = "Data Resource Ready for Review " #tk.config.get("ckanext.twdh.admin_email_subject","Dataset Approval Request")
+        admin_email = tk.config.get("ckanext.contact.mail_to","DataHub@twdh.texas.gov")
+        subject = tk.config.get("ckanext.twdh.admin_email_subject","Dataset Approval Request")
         tk.mail_recipient(admin_name, admin_email, subject, email_template_txt, email_template_html)
 
         # Don't send to all sysadmins for now
@@ -279,13 +279,19 @@ class SchemingEditPageView(EditView):
         
             if save_action == 'previous':
                 if page == 2:
-                    return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
+                    if data['resources'] and len( data['resources'] ) > 0 :
+                        return h.redirect_to('{}_resources'.format(package_type), id=data_dict['pkg_name']) 
+                    else:
+                        return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
                 elif page > 1:
                     return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page - 1)
 
             elif save_action == 'next':
                 if page == 1:
-                    return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
+                    if data['resources'] and len( data['resources'] ) > 0 :
+                        return h.redirect_to('{}_resources'.format(package_type), id=data_dict['pkg_name']) 
+                    else:
+                        return h.redirect_to('{}_resource.new'.format(package_type), id=data_dict['pkg_name']) 
                 elif page < total_pages:
                     return h.redirect_to(f'{package_type}.scheming_edit_page', id=id, page=page + 1)
 
