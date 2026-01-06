@@ -334,6 +334,66 @@ ckan.module('scheming-suggestions', function($) {
             if (updatedFieldsLog.length > 0) console.log("SchemingSuggestions: _updateLiveDatasetAndFormulaFields updated:", updatedFieldsLog);
         },
 
+        _checkDatapusherStatus: function() {
+            var self = this;
+            
+            // Get the first resource from the dataset to check its status
+            $.ajax({
+                url: (ckan.SITE_ROOT || '') + '/api/3/action/package_show',
+                data: { id: globalState.datasetId, include_tracking: false },
+                dataType: 'json',
+                cache: false,
+                success: function(response) {
+                    if (response.success && response.result && response.result.resources && response.result.resources.length > 0) {
+                        // Check the first resource's datapusher status
+                        var resourceId = response.result.resources[0].id;
+                        
+                        $.ajax({
+                            url: (ckan.SITE_ROOT || '') + '/api/3/action/datapusher_status',
+                            data: { resource_id: resourceId },
+                            dataType: 'json',
+                            cache: false,
+                            success: function(statusResponse) {
+                                if (statusResponse.success && statusResponse.result) {
+                                    var status = statusResponse.result;
+                                    var errorMessage = null;
+                                    
+                                    // Check for errors in the same way the datastore page does
+                                    if (status.error && status.error.message) {
+                                        errorMessage = status.error.message;
+                                    } else if (status.task_info && status.task_info.error) {
+                                        if (typeof status.task_info.error === 'string') {
+                                            errorMessage = status.task_info.error;
+                                        } else if (status.task_info.error.message) {
+                                            errorMessage = status.task_info.error.message;
+                                        }
+                                    }
+                                    
+                                    // If there's an error, show it on the banner
+                                    if (errorMessage) {
+                                        var packageId = response.result.id || response.result.name;
+                                        var datastoreUrl = (ckan.SITE_ROOT || '') + '/dataset/' + packageId + '/resource/' + resourceId;
+                                        var errorBannerMsg = '<span><i class="fa fa-exclamation-triangle"></i> <strong>Error processing dataset:</strong> ' + 
+                                                      $('<div>').text(errorMessage).html() + 
+                                                      '<br><a href="' + datastoreUrl + '" style="color: #fff; text-decoration: underline;">View details in Datastore tab</a></span>';
+                                        
+                                        self._updateProcessingBanner(errorBannerMsg, 'scheming-alert-danger');
+                                        globalState.isPolling = false;
+                                    }
+                                }
+                            },
+                            error: function() {
+                                // Silently fail - not critical
+                            }
+                        });
+                    }
+                },
+                error: function() {
+                    // Silently fail - not critical
+                }
+            });
+        },
+
         _pollForSuggestions: function() {
             var self = this;
 
@@ -393,6 +453,9 @@ ckan.module('scheming-suggestions', function($) {
                 });
             }
             
+            // Also check datapusher_status for errors
+            self._checkDatapusherStatus();
+            
             $.ajax({
                 url: (ckan.SITE_ROOT || '') + '/api/3/action/package_show',
                 data: { id: globalState.datasetId, include_tracking: false },
@@ -420,7 +483,6 @@ ckan.module('scheming-suggestions', function($) {
                             self._updateLiveDatasetAndFormulaFields(null, dppSuggestionsData); // Only update dpp_suggestions field
                         }
 
-
                         if (currentDppStatus) {
                             if (self.options.terminalStatuses.includes(currentDppStatus)) {
                                 if (currentDppStatus === 'DONE') {
@@ -430,23 +492,21 @@ ckan.module('scheming-suggestions', function($) {
                                     }
                                 } else { // ERROR, FAILED
                                     if ($('#scheming-processing-banner').length > 0) {
-                                        self._updateProcessingBanner(self.options.statusErrorText + esc(dppSuggestionsData.STATUS) + '</span>', 'scheming-alert-danger');
+                                        var errorMsg = self.options.statusErrorText + esc(dppSuggestionsData.STATUS) + '</span>';
+                                        
+                                        // If there's an ERROR_MESSAGE field, display it with a link to datastore
+                                        if (dppSuggestionsData.ERROR_MESSAGE) {
+                                            var packageId = datasetObject.id || datasetObject.name;
+                                            var datastoreUrl = (ckan.SITE_ROOT || '') + '/dataset/' + packageId + '#datastore-tab';
+                                            errorMsg = '<span><i class="fa fa-exclamation-triangle"></i> <strong>Error processing dataset:</strong> ' + 
+                                                      esc(dppSuggestionsData.ERROR_MESSAGE) + 
+                                                      '<br><a href="' + datastoreUrl + '" style="color: #fff; text-decoration: underline;">View details in Datastore tab</a></span>';
+                                        }
+                                        
+                                        self._updateProcessingBanner(errorMsg, 'scheming-alert-danger');
                                     }
                                 }
                                 globalState.isPolling = false; return;
-                            } else { // Ongoing status
-                                self._updateProcessingBanner(self.options.statusProcessingTextPrefix + esc(dppSuggestionsData.STATUS) + '</span>', 'scheming-alert-info');
-                                setTimeout(function() { self._pollForSuggestions(); }, self.options.pollingInterval);
-                            }
-                        } else { // No STATUS in dpp_suggestions
-                            console.warn("SchemingSuggestions: Poll " + globalState.pollAttempts + ": dpp_suggestions object has no STATUS field.");
-                            if (globalState.pollAttempts < self.options.maxPollAttempts) {
-                               setTimeout(function() { self._pollForSuggestions(); }, self.options.pollingInterval);
-                            } else { // Max attempts reached with no status
-                                if (!$('#scheming-processing-banner').hasClass('scheming-alert-success') && !$('#scheming-processing-banner').hasClass('scheming-alert-danger')) {
-                                   self._updateProcessingBanner('<span><i class="fa fa-info-circle"></i> Processing status unclear. Max attempts reached.</span>', 'scheming-alert-warning');
-                                }
-                                globalState.isPolling = false;
                             }
                         }
                     } else { // API success:false or no result
