@@ -383,12 +383,12 @@ ckan.module('scheming-suggestions', function($) {
                             if (!status || !self.options.terminalStatuses.includes(status.toUpperCase())) {
                                 self._showProcessingBanner();
                             }
-                        } else {
-                            self._showProcessingBanner();
                         }
+                        // If dpp_suggestions doesn't exist, don't show the banner
+                        // (dataset has no resources being processed)
                     },
                     error: function() {
-                        self._showProcessingBanner();
+                        // Don't show banner on error - dataset might just be new
                     }
                 });
             }
@@ -404,6 +404,14 @@ ckan.module('scheming-suggestions', function($) {
                     if (response.success && response.result) {
                         var datasetObject = response.result;
                         var dppSuggestionsData = datasetObject.dpp_suggestions; // This is the direct JSON object
+
+                        // If dpp_suggestions doesn't exist at all, this dataset has no resources being processed
+                        if (!dppSuggestionsData) {
+                            console.log("SchemingSuggestions: No dpp_suggestions field found. Dataset has no resources being processed.");
+                            self._showAllButtonsAsNoSuggestion();
+                            globalState.isPolling = false;
+                            return;
+                        }
 
                         if (dppSuggestionsData && dppSuggestionsData.package) {
                             self._processDppButtonSuggestions(dppSuggestionsData.package);
