@@ -1,4 +1,5 @@
 scheming_css:
+  filters: cssmin
   output: ckanext-scheming/%(version)s_scheming_css.css
   contents:
     - styles/scheming.css
