@@ -149,11 +149,97 @@ ckan.module('scheming-suggestions', function($) {
                    path.match(/\/dataset\/[^\/]+\/resource\/[^\/]+(\/edit)?$/) !== null;
         },
 
-        _processDppButtonSuggestions: function(dppPackageSuggestions) {
+        _isEmptySuggestion: function(value) {
+            return value === null || value === undefined || value === '' || value === 'None';
+        },
+
+        _isErrorSuggestion: function(value) {
+            return typeof value === 'string' && value.startsWith(this.options.errorPrefix);
+        },
+
+        // A single resource can already offer several candidates for one field —
+        // a CSV with more than one date column, say — so each raw value may
+        // expand into multiple options.
+        _expandSuggestionOptions: function(rawValue, resourceName) {
             var self = this;
-            if (!dppPackageSuggestions) {
-                return;
+            var options = [];
+            if (self._isEmptySuggestion(rawValue)) return options;
+
+            var parsed = null;
+            try { parsed = JSON.parse(rawValue); } catch (e) { /* a plain value, not a candidate list */ }
+
+            if ($.isArray(parsed) && parsed.length && parsed[0] && parsed[0].field_name && parsed[0].date) {
+                parsed.forEach(function(candidate) {
+                    if (self._isEmptySuggestion(candidate.date)) return;
+                    options.push({ value: candidate.date, column: candidate.field_name, resource: resourceName || '' });
+                });
+            } else {
+                options.push({ value: rawValue, column: '', resource: resourceName || '' });
             }
+            return options;
+        },
+
+        // DP+ records what each resource inferred on that resource, so the policy
+        // declared in the schema decides whether a field is offered every
+        // resource's answer or only the primary resource's.
+        // See TNRIS/texaswaterhub_CKAN#1088.
+        _collectFieldSuggestions: function(datasetObject, fieldName, policy) {
+            var self = this;
+            var collected = { present: false, options: [], is_valid: undefined, is_error: false };
+            if (!datasetObject) return collected;
+
+            var sources = (datasetObject.resources || []).filter(function(resource) {
+                return resource && resource.dpp_suggestions && resource.dpp_suggestions.package &&
+                       resource.dpp_suggestions.package.hasOwnProperty(fieldName);
+            }).map(function(resource) {
+                return { suggestions: resource.dpp_suggestions.package, name: resource.name || '' };
+            });
+
+            // Datasets analysed before suggestions moved to the resource level
+            if (!sources.length) {
+                var legacy = datasetObject.dpp_suggestions && datasetObject.dpp_suggestions.package;
+                if (legacy && legacy.hasOwnProperty(fieldName)) {
+                    sources = [{ suggestions: legacy, name: '' }];
+                }
+            }
+            if (!sources.length) return collected;
+
+            // Anything but all_resources takes the primary resource. sources is in
+            // resource order, so that is the first entry — falling through to the
+            // first resource that has an answer when the primary has none.
+            if (policy !== 'all_resources') {
+                sources = sources.slice(0, 1);
+            }
+
+            collected.present = true;
+            collected.is_valid = sources[0].suggestions[fieldName + '_is_valid'];
+
+            var errors = [];
+            sources.forEach(function(source) {
+                var rawValue = source.suggestions[fieldName];
+                if (self._isErrorSuggestion(rawValue)) {
+                    errors.push({ value: rawValue, column: '', resource: source.name });
+                    return;
+                }
+                self._expandSuggestionOptions(rawValue, source.name).forEach(function(option) {
+                    var duplicate = collected.options.some(function(existing) {
+                        return String(existing.value) === String(option.value);
+                    });
+                    if (!duplicate) collected.options.push(option);
+                });
+            });
+
+            // Only surface an error when no resource produced anything usable
+            if (!collected.options.length && errors.length) {
+                collected.options = errors.slice(0, 1);
+                collected.is_error = true;
+            }
+
+            return collected;
+        },
+
+        _processDppButtonSuggestions: function(datasetObject) {
+            var self = this;
             $('button[data-module="scheming-suggestions"]').each(function() {
                 var $buttonEl = $(this);
                 var fieldName = $buttonEl.data('field-name');
@@ -165,13 +251,15 @@ ckan.module('scheming-suggestions', function($) {
                 }
                 var fieldSchema = typeof fieldSchemaJson === 'string' ? JSON.parse(fieldSchemaJson) : fieldSchemaJson;
 
-                if (dppPackageSuggestions.hasOwnProperty(fieldName)) {
-                    var suggestionValue = dppPackageSuggestions[fieldName];
-                    var isErrorSuggestion = typeof suggestionValue === 'string' && suggestionValue.startsWith(self.options.errorPrefix);
+                var collected = self._collectFieldSuggestions(datasetObject, fieldName, fieldSchema.suggestion_policy);
+
+                if (collected.present && collected.options.length) {
+                    var isErrorSuggestion = collected.is_error;
+                    var suggestionValue = collected.options[0].value;
                     var suggestionLabel = fieldSchema.suggestion_label || fieldSchema.label || 'Suggestion';
-                    var suggestionFormula = fieldSchema.suggestion_formula || 'N/A'; 
+                    var suggestionFormula = fieldSchema.suggestion_formula || 'N/A';
                     var isSelect = fieldSchema.is_select;
-                    var isValidSuggestion = dppPackageSuggestions[fieldName + '_is_valid'];
+                    var isValidSuggestion = collected.is_valid;
                     if (isValidSuggestion === undefined) {
                          isValidSuggestion = true;
                          if (isSelect && fieldSchema.choices && fieldSchema.choices.length > 0) {
@@ -192,7 +280,8 @@ ckan.module('scheming-suggestions', function($) {
                     }
 
                     self._populatePopoverContent($buttonEl, self._popoverDivs[fieldName], {
-                        value: suggestionValue, label: suggestionLabel, formula: suggestionFormula,
+                        value: suggestionValue, options: collected.options,
+                        label: suggestionLabel, formula: suggestionFormula,
                         is_select: isSelect, is_valid: isErrorSuggestion ? false : isValidSuggestion,
                         field_name: fieldName, is_error: isErrorSuggestion
                     });
@@ -476,11 +565,7 @@ ckan.module('scheming-suggestions', function($) {
                             return;
                         }
 
-                        if (dppSuggestionsData && dppSuggestionsData.package) {
-                            self._processDppButtonSuggestions(dppSuggestionsData.package);
-                        } else {
-                            self._processDppButtonSuggestions(null);
-                        }
+                        self._processDppButtonSuggestions(datasetObject);
                         var currentDppStatus = (dppSuggestionsData && dppSuggestionsData.STATUS) ? dppSuggestionsData.STATUS.toUpperCase() : null;
 
                         if (currentDppStatus === 'DONE') {
@@ -543,6 +628,59 @@ ckan.module('scheming-suggestions', function($) {
             });
         },
         _populatePopoverContent: function($buttonEl, $popoverDiv, suggestionData) {
+            // More than one candidate — from several resources, several date
+            // columns, or both — so let the curator pick which one to apply.
+            var suggestionOptions = suggestionData.options || [];
+            if (suggestionOptions.length > 1) {
+                var radioOptionsHtml = suggestionOptions.map(function(option, index) {
+                    var radioId = 'date-option-' + suggestionData.field_name + '-' + index;
+                    var originParts = [];
+                    if (option.resource) originParts.push(option.resource);
+                    if (option.column) originParts.push(option.column);
+                    var origin = originParts.join(' › ');
+                    return `
+                        <div class='date-option-row'>
+                            <input type='radio' id='${radioId}' name='date-options-${suggestionData.field_name}'
+                                   value='${esc(option.value)}' data-field='${esc(option.column || option.resource || '')}'
+                                   ${index === 0 ? 'checked' : ''}>
+                            <label for='${radioId}'>
+                                ${origin ? `<strong>${esc(origin)}:</strong> ` : ''}${esc(option.value)}
+                            </label>
+                        </div>`;
+                }).join('');
+
+                $popoverDiv.html(`
+                    <div class='suggestion-popover-content'>
+                        <strong>${esc(suggestionData.label)}</strong>
+                        <div class='multiple-date-options'>
+                            <p>${suggestionOptions.length} suggestions found. Select the one to apply:</p>
+                            ${radioOptionsHtml}
+                        </div>
+                        <div class='formula-toggle'>
+                            <button class='formula-toggle-btn' type='button'>
+                                <span class='formula-toggle-icon'>&#9660;</span>
+                                <span class='formula-toggle-text'>Show formula</span>
+                            </button>
+                        </div>
+                        <div class='suggestion-formula' style='display:none;'>
+                            <div class='formula-header'>
+                                <span>Formula:</span>
+                                <button class='copy-formula-btn' type='button' data-formula='${esc(suggestionData.formula)}' title="Copy formula">
+                                    <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24'><path fill='currentColor' d='M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z'/></svg>
+                                </button>
+                            </div>
+                            <code>${esc(suggestionData.formula)}</code>
+                        </div>
+                        <button class='suggestion-apply-btn'
+                                data-target='field-${suggestionData.field_name}'
+                                data-multiple-options='true'>
+                            Apply selected suggestion
+                        </button>
+                    </div>`);
+                this._attachActionHandlers($popoverDiv, suggestionData.field_name);
+                return;
+            }
+
             var popoverContentHtml = `
                 <div class='suggestion-popover-content ${suggestionData.is_error ? "suggestion-popover-error" : ""}'>
                     <strong>${esc(suggestionData.label)}</strong>
@@ -646,11 +784,22 @@ ckan.module('scheming-suggestions', function($) {
                 e.preventDefault(); e.stopPropagation();
                 if ($(this).hasClass('suggestion-apply-btn-disabled')) return;
                 var targetId = $(this).data('target');
+                var isMultipleOptions = $(this).data('multiple-options');
                 var suggestionValue = $(this).data('value');
                 var isValid = $(this).data('is-valid') !== false;
                 var $target = $('#' + targetId);
 
                 if (!$target.length) { console.error("Scheming Popover Apply: Target not found:", targetId); return; }
+
+                if (isMultipleOptions) {
+                    var $selectedRadio = $popoverDiv.find('input[name="date-options-' + fieldName + '"]:checked');
+                    if (!$selectedRadio.length) {
+                        self._showTemporaryMessage($target, "Please select a suggestion.", 'suggestion-warning-message', '#e67e22');
+                        return;
+                    }
+                    suggestionValue = $selectedRadio.val();
+                    isValid = true;
+                }
 
                 var applySuccess = false;
                 if (self._setFieldValue($target, suggestionValue, targetId.substring(6))) {
